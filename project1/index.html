@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RouteEvolve — Delivery Route Optimizer using a Genetic Algorithm (TSP)</title>
+  
+  <!-- Local Leaflet Styles (Zero CDN dependency) -->
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <!-- Application Theme -->
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app-container">
+    
+    <!-- HEADER BAR -->
+    <header id="app-header">
+      <div class="brand-section">
+        <h1 class="brand-title">
+          RouteEvolve
+          <span class="brand-badge">TSP &bull; GA</span>
+        </h1>
+        <span class="brand-subtitle">Ludhiana Delivery Route Optimizer &bull; Soft Computing Lab</span>
+      </div>
+
+      <div class="header-actions">
+        <!-- Mode Toggles -->
+        <button id="toggle-offline-btn" class="header-btn" data-tooltip="Switch to pure canvas plane view with zero internet requirement">
+          <span>Offline Canvas</span>
+        </button>
+        <button id="toggle-explain-btn" class="header-btn" data-tooltip="Inspect generation lifecycle step-by-step for viva demo">
+          <span>Explain Mode</span>
+        </button>
+        <button id="toggle-theme-btn" class="header-btn" data-tooltip="Toggle light parchment / night map mode">
+          <span id="theme-btn-label">Night Map</span>
+        </button>
+        <button id="open-info-btn" class="header-btn" data-tooltip="Viva review: algorithm mechanics & theory">
+          <span>How It Works</span>
+        </button>
+        <a href="tests.html" target="_blank" class="header-btn" style="text-decoration: none;" data-tooltip="Run operator verification suite">
+          <span>Test Suite &rarr;</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- MAIN WORKSPACE -->
+    <div id="main-workspace">
+      
+      <!-- LEFT SIDEBAR: CONTROLS & PARAMETERS -->
+      <aside id="left-sidebar">
+        
+        <!-- SECTION 1: PRESETS & MAP STOPS -->
+        <div class="sidebar-section">
+          <div class="section-header">
+            <span class="sc-label">Presets & Delivery Stops</span>
+            <span id="stop-count-badge" class="val-badge">12 stops</span>
+          </div>
+
+          <div class="preset-grid">
+            <button id="preset-demo-btn" class="preset-btn btn-accent" data-tooltip="Load 12 central Ludhiana commercial landmarks with Clock Tower depot">Ludhiana Demo (12)</button>
+            <button id="preset-large-btn" class="preset-btn" data-tooltip="Load 25 comprehensive stops across Ludhiana district">Ludhiana Large (25)</button>
+            <button id="preset-random-btn" class="preset-btn" data-tooltip="Generate random stops across the active view">Random Stops</button>
+            <button id="preset-clear-btn" class="preset-btn" data-tooltip="Clear all stops from the map">Clear Map</button>
+          </div>
+
+          <div class="form-row" style="margin-top: 10px;">
+            <div class="form-row-header">
+              <label for="random-count-slider" class="sc-label" data-tooltip="Number of stops generated when clicking 'Random Stops'">Random Stops Count</label>
+              <span id="random-count-val" class="val-badge">15</span>
+            </div>
+            <input type="range" id="random-count-slider" class="form-range" min="5" max="60" value="15">
+          </div>
+
+          <div class="action-grid">
+            <button id="import-json-btn" class="tool-btn" data-tooltip="Import saved delivery stops from a JSON file">Import JSON</button>
+            <button id="export-json-btn" class="tool-btn" data-tooltip="Export current delivery stops to a JSON file">Export JSON</button>
+            <input type="file" id="json-file-input" accept=".json" style="display: none;">
+          </div>
+
+          <label class="checkbox-row" style="margin-top: 8px;">
+            <input type="checkbox" id="show-pop-checkbox">
+            <span data-tooltip="Draw top 5 routes of the current generation as thin translucent lines">Show Top 5 Population Lines</span>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="seed-nn-checkbox">
+            <span data-tooltip="Inject 1 Nearest-Neighbour individual into Generation 0 (off by default so GA proves itself)">Seed 1 with Nearest-Neighbour</span>
+          </label>
+        </div>
+
+        <!-- SECTION 2: GENETIC ALGORITHM PARAMETERS -->
+        <div class="sidebar-section">
+          <div class="section-header">
+            <span class="sc-label">Population & Evolution Parameters</span>
+          </div>
+
+          <div class="param-group">
+            <div class="form-row">
+              <div class="form-row-header">
+                <label for="pop-size-slider" class="sc-label" data-tooltip="Number of chromosome individuals in each generation (20 to 500)">Population Size</label>
+                <span id="pop-size-val" class="val-badge">100</span>
+              </div>
+              <input type="range" id="pop-size-slider" class="form-range" min="20" max="500" step="10" value="100">
+            </div>
+
+            <div class="form-row">
+              <div class="form-row-header">
+                <label for="crossover-rate-slider" class="sc-label" data-tooltip="Probability of crossing over two selected parents (0% to 100%)">Crossover Rate (Pc)</label>
+                <span id="crossover-rate-val" class="val-badge">85%</span>
+              </div>
+              <input type="range" id="crossover-rate-slider" class="form-range" min="0" max="100" step="5" value="85">
+            </div>
+
+            <div class="form-row">
+              <div class="form-row-header">
+                <label for="mutation-rate-slider" class="sc-label" data-tooltip="Probability of mutating an offspring chromosome (0% to 100%)">Mutation Rate (Pm)</label>
+                <span id="mutation-rate-val" class="val-badge">15%</span>
+              </div>
+              <input type="range" id="mutation-rate-slider" class="form-range" min="0" max="100" step="1" value="15">
+            </div>
+
+            <div class="form-row">
+              <div class="form-row-header">
+                <label for="elitism-slider" class="sc-label" data-tooltip="Number of top best routes copied to the next generation without modification">Elitism Count</label>
+                <span id="elitism-val" class="val-badge">2</span>
+              </div>
+              <input type="range" id="elitism-slider" class="form-range" min="0" max="15" step="1" value="2">
+            </div>
+
+            <div class="form-row">
+              <div class="form-row-header">
+                <label for="max-gen-slider" class="sc-label" data-tooltip="Maximum generations before termination">Max Generations</label>
+                <span id="max-gen-val" class="val-badge">500</span>
+              </div>
+              <input type="range" id="max-gen-slider" class="form-range" min="50" max="1500" step="50" value="500">
+            </div>
+
+            <div class="form-row">
+              <div class="form-row-header">
+                <label for="stagnation-slider" class="sc-label" data-tooltip="Stop automatically if best distance does not improve for K generations">Stagnation Limit (K)</label>
+                <span id="stagnation-val" class="val-badge">150</span>
+              </div>
+              <input type="range" id="stagnation-slider" class="form-range" min="20" max="400" step="10" value="150">
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 3: GENETIC OPERATORS -->
+        <div class="sidebar-section">
+          <div class="section-header">
+            <span class="sc-label">Genetic Operators Selection</span>
+          </div>
+
+          <div class="param-group">
+            <div class="form-row">
+              <label for="selection-select" class="sc-label" data-tooltip="Strategy for picking parents for mating">Selection Method</label>
+              <select id="selection-select" class="form-select">
+                <option value="tournament" selected>Tournament Selection</option>
+                <option value="roulette">Roulette Wheel (Fitness Proportionate)</option>
+                <option value="rank">Linear Rank Selection</option>
+              </select>
+            </div>
+
+            <div class="form-row" id="tournament-size-row">
+              <div class="form-row-header">
+                <label for="tournament-slider" class="sc-label" data-tooltip="Number of competitors drawn in tournament selection">Tournament Size (k)</label>
+                <span id="tournament-val" class="val-badge">5</span>
+              </div>
+              <input type="range" id="tournament-slider" class="form-range" min="2" max="15" step="1" value="5">
+            </div>
+
+            <div class="form-row">
+              <label for="crossover-select" class="sc-label" data-tooltip="Permutation-safe crossover operator">Crossover Operator</label>
+              <select id="crossover-select" class="form-select">
+                <option value="ox" selected>Order Crossover (OX)</option>
+                <option value="pmx">Partially Mapped Crossover (PMX)</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <label for="mutation-select" class="sc-label" data-tooltip="Permutation mutation operator to introduce genetic diversity">Mutation Operator</label>
+              <select id="mutation-select" class="form-select">
+                <option value="swap" selected>Swap Mutation (Exchange 2 stops)</option>
+                <option value="inversion">Inversion Mutation (2-Opt sub-segment reversal)</option>
+                <option value="scramble">Scramble Mutation (Shuffle sub-segment)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 4: EXPERIMENTS & BENCHMARKS -->
+        <div class="sidebar-section">
+          <div class="section-header">
+            <span class="sc-label">Lab Experiments & Reproducibility</span>
+          </div>
+
+          <div class="form-row">
+            <label for="seed-input" class="sc-label" data-tooltip="Set integer seed for 100% reproducible PRNG runs (leave empty for random)">Random Seed</label>
+            <input type="number" id="seed-input" class="form-input mono" placeholder="e.g. 42 (blank for random)">
+          </div>
+
+          <div class="action-grid" style="margin-top: 8px;">
+            <button id="compare-crossovers-btn" class="tool-btn" data-tooltip="Run OX vs PMX head-to-head with identical seed and plot both curves">Compare Crossovers</button>
+            <button id="run-10-btn" class="tool-btn" data-tooltip="Run GA 10 times to evaluate stochastic mean, best, worst, and std dev">Run 10 Times</button>
+            <button id="polish-2opt-btn" class="tool-btn" data-tooltip="Run 2-Opt local search refinement on the final GA best route">GA + 2-Opt Polish</button>
+            <button id="export-csv-btn" class="tool-btn" data-tooltip="Download current route stops and step distances as CSV">Export Route CSV</button>
+          </div>
+        </div>
+
+        <!-- KEYBOARD HINTS FOOTER -->
+        <div class="kbd-footer">
+          <div><span class="kbd-badge">Space</span> Start / Pause Optimization</div>
+          <div><span class="kbd-badge">S</span> Step One Generation</div>
+          <div><span class="kbd-badge">R</span> Reset Population & Routes</div>
+          <div><span class="kbd-badge">Click Map</span> Add Stop &bull; <span class="kbd-badge">Right Click</span> Depot / Delete</div>
+        </div>
+
+      </aside>
+
+      <!-- CENTER WORKSPACE: MAP & HUD CONTROLS -->
+      <main id="center-workspace">
+        
+        <!-- FLOATING HUD MASTER CONTROLS -->
+        <div id="hud-controls">
+          <button id="btn-start" class="hud-btn hud-btn-primary" data-tooltip="Start or resume genetic evolution [Space]">
+            <span id="start-btn-icon">&#9654;</span>
+            <span id="start-btn-label">Start GA</span>
+          </button>
+          <button id="btn-step" class="hud-btn hud-btn-secondary" data-tooltip="Evolve exactly one generation [S]">
+            <span>&#9197;</span> Step
+          </button>
+          <button id="btn-reset" class="hud-btn hud-btn-secondary" data-tooltip="Reset population and route [R]">
+            <span>&#8634;</span> Reset
+          </button>
+
+          <div class="hud-separator"></div>
+
+          <div class="speed-control-group">
+            <span class="sc-label">Speed:</span>
+            <input type="range" id="speed-slider" class="speed-slider" min="1" max="100" value="65" data-tooltip="Adjust evolution speed (generations per second)">
+            <span id="speed-val" class="val-badge">65%</span>
+          </div>
+
+          <div class="hud-separator"></div>
+
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="sc-label">Gen:</span>
+            <span id="hud-gen-badge" class="val-badge" style="font-size: 13px;">0</span>
+          </div>
+        </div>
+
+        <!-- MAP VIEWPORT -->
+        <div id="map-viewport">
+          <!-- Leaflet Container -->
+          <div id="leaflet-map"></div>
+          <!-- Offline Canvas Plane Container -->
+          <canvas id="offline-canvas"></canvas>
+        </div>
+
+        <!-- EXPLAINER MODE BOTTOM DRAWER -->
+        <div id="explainer-drawer">
+          <div class="explainer-header">
+            <div>
+              <span class="sc-label" style="color: var(--accent-vermilion);">Explain Mode — Generation Walkthrough</span>
+              <span id="explain-gen-label" class="val-badge" style="margin-left: 8px;">Gen 1</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <button id="explain-step-btn" class="hud-btn hud-btn-primary" style="padding: 4px 10px; font-size: 11px;">Next Step &rarr;</button>
+              <button id="explain-close-btn" class="hud-btn hud-btn-secondary" style="padding: 4px 10px; font-size: 11px;">Close</button>
+            </div>
+          </div>
+
+          <div class="explainer-steps-container">
+            <!-- Step 1: Fitness -->
+            <div class="explain-step-card" id="step-card-1">
+              <span class="sc-label">Step 1: Fitness Evaluation</span>
+              <p style="font-size: 11px; color: var(--ink-secondary);">Every route is evaluated via <code class="mono">f = 1 / distance</code>. Elites are identified.</p>
+              <div id="explain-step1-details" class="mono" style="font-size: 11px; margin-top: 4px;">Top Elite: -- km</div>
+            </div>
+
+            <!-- Step 2: Parent Selection -->
+            <div class="explain-step-card" id="step-card-2">
+              <span class="sc-label">Step 2: Selection</span>
+              <p style="font-size: 11px; color: var(--ink-secondary);">Two parents selected via chosen operator:</p>
+              <div id="explain-step2-p1" class="gene-strip"></div>
+              <div id="explain-step2-p2" class="gene-strip" style="margin-top: 6px;"></div>
+            </div>
+
+            <!-- Step 3: Crossover -->
+            <div class="explain-step-card" id="step-card-3">
+              <span class="sc-label">Step 3: Crossover</span>
+              <p style="font-size: 11px; color: var(--ink-secondary);">Subsegment swapped between cut points; missing cities mapped.</p>
+              <div id="explain-step3-child" class="gene-strip"></div>
+            </div>
+
+            <!-- Step 4: Mutation -->
+            <div class="explain-step-card" id="step-card-4">
+              <span class="sc-label">Step 4: Mutation</span>
+              <p style="font-size: 11px; color: var(--ink-secondary);">Permutation mutation applied at rate Pm:</p>
+              <div id="explain-step4-child" class="gene-strip"></div>
+            </div>
+
+            <!-- Step 5: New Population -->
+            <div class="explain-step-card" id="step-card-5">
+              <span class="sc-label">Step 5: New Generation</span>
+              <p style="font-size: 11px; color: var(--ink-secondary);">Children added to next population. Permutation validity asserted.</p>
+              <div id="explain-step5-details" class="mono" style="font-size: 11px; margin-top: 4px;">Validity Check: PASS</div>
+            </div>
+          </div>
+        </div>
+
+      </main>
+
+      <!-- RIGHT PANEL: STATS, CHARTS, COMPARISON & LOG -->
+      <aside id="right-panel">
+        
+        <!-- LIVE STATS CARDS -->
+        <div class="stats-card-grid">
+          <div class="stat-cell">
+            <span class="sc-label">Generation</span>
+            <span id="stat-generation" class="stat-val">0</span>
+            <span id="stat-max-gen" class="stat-sub">of 500 max</span>
+          </div>
+
+          <div class="stat-cell">
+            <span class="sc-label">Best Route Length</span>
+            <span id="stat-best-distance" class="stat-val highlight">-- km</span>
+            <span id="stat-best-gen" class="stat-sub">found at gen 0</span>
+          </div>
+
+          <div class="stat-cell">
+            <span class="sc-label">Population Average</span>
+            <span id="stat-avg-distance" class="stat-val">-- km</span>
+            <span class="stat-sub">mean tour length</span>
+          </div>
+
+          <div class="stat-cell">
+            <span class="sc-label">Improvement vs Gen 0</span>
+            <span id="stat-imp-gen0" class="stat-val">0.0%</span>
+            <span class="stat-sub">initial random baseline</span>
+          </div>
+
+          <div class="stat-cell">
+            <span class="sc-label">Vs Nearest Neighbour</span>
+            <span id="stat-imp-nn" class="stat-val">--%</span>
+            <span id="stat-nn-baseline-label" class="stat-sub">NN: -- km</span>
+          </div>
+
+          <div class="stat-cell">
+            <span class="sc-label">Diversity / Time</span>
+            <span id="stat-diversity" class="stat-val">--%</span>
+            <span id="stat-elapsed-time" class="stat-sub">0 ms elapsed</span>
+          </div>
+        </div>
+
+        <!-- CONVERGENCE CHART -->
+        <div class="chart-container-section">
+          <div class="chart-header">
+            <span class="sc-label">Convergence Curve (Fitness Evolution)</span>
+            <button id="download-chart-btn" class="tool-btn" style="padding: 2px 6px; font-size: 10px;" data-tooltip="Download convergence curve as PNG image">Save PNG</button>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="chart-canvas"></canvas>
+          </div>
+        </div>
+
+        <!-- POST-RUN COMPARISON BENCHMARK PANEL -->
+        <div class="comparison-section" id="comparison-panel">
+          <div class="section-header">
+            <span class="sc-label">Algorithm Benchmark Comparison</span>
+          </div>
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>Distance</th>
+                <th>Saving vs Gen 0</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="comparison-tbody">
+              <tr id="row-random">
+                <td>Random Initial Best</td>
+                <td class="mono" id="comp-rnd-dist">-- km</td>
+                <td class="mono">0.0%</td>
+                <td class="mono">&lt; 1 ms</td>
+              </tr>
+              <tr id="row-nn">
+                <td>Nearest Neighbour</td>
+                <td class="mono" id="comp-nn-dist">-- km</td>
+                <td class="mono" id="comp-nn-sav">--%</td>
+                <td class="mono" id="comp-nn-time">-- ms</td>
+              </tr>
+              <tr id="row-ga">
+                <td>Genetic Algorithm</td>
+                <td class="mono" id="comp-ga-dist">-- km</td>
+                <td class="mono" id="comp-ga-sav">--%</td>
+                <td class="mono" id="comp-ga-time">-- ms</td>
+              </tr>
+              <tr id="row-2opt">
+                <td>GA + 2-Opt Polish</td>
+                <td class="mono" id="comp-2opt-dist">-- km</td>
+                <td class="mono" id="comp-2opt-sav">--%</td>
+                <td class="mono" id="comp-2opt-time">-- ms</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- EVOLUTION STREAM LOG -->
+        <div class="log-section">
+          <div class="section-header">
+            <span class="sc-label">Evolution Event Log</span>
+            <button id="clear-log-btn" class="tool-btn" style="padding: 2px 6px; font-size: 10px;">Clear</button>
+          </div>
+          <div class="log-scroller" id="evolution-log-scroller">
+            <div class="log-item"><span>Ready. Drop stops or load Ludhiana preset.</span></div>
+          </div>
+        </div>
+
+      </aside>
+
+    </div>
+
+    <!-- "HOW IT WORKS" VIVA EXPLANATION MODAL -->
+    <div id="how-it-works-modal">
+      <div class="modal-dialog">
+        <h2>RouteEvolve — Soft Computing Viva Reference</h2>
+        
+        <h3>1. How the Travelling Salesman Problem (TSP) Maps to Genetic Algorithms</h3>
+        <p>The Travelling Salesman Problem asks for the shortest closed tour visiting N cities exactly once. Because an exhaustive search requires evaluating <code>(N-1)! / 2</code> candidate tours (which becomes astronomically impossible for N &ge; 25), Soft Computing utilizes Genetic Algorithms to heuristically explore the combinatorial search space.</p>
+        
+        <ul>
+          <li><strong>Chromosome:</strong> Path representation. A permutation of city indices <code>[0, c1, c2, ..., cN-1]</code> where city 0 is the fixed dispatch depot and the tour implicitly loops back to city 0.</li>
+          <li><strong>Fitness Function:</strong> <code>Fitness = 1 / Total_Route_Distance(km)</code>. Shorter distance produces higher fitness, naturally driving reproduction.</li>
+          <li><strong>Distance Matrix:</strong> An N &times; N matrix precalculated with the Haversine spherical formula (or Euclidean plane metric) enables <code>O(1)</code> edge lookups and high-speed fitness evaluations.</li>
+        </ul>
+
+        <h3>2. Why Standard Single-Point Crossover Fails on TSP</h3>
+        <p>Standard single-point crossover cuts two binary chromosomes and swaps the tails. In TSP, doing this causes severe <em>duplicate cities</em> and <em>missing cities</em>, breaking the permutation. Therefore, specialized operators like <strong>Order Crossover (OX)</strong> and <strong>Partially Mapped Crossover (PMX)</strong> are required:</p>
+        <ul>
+          <li><strong>Order Crossover (OX):</strong> Copies an intact subsegment from Parent 1 to preserve relative order, then fills remaining slots from Parent 2 cyclically without duplicating.</li>
+          <li><strong>Partially Mapped Crossover (PMX):</strong> Uses cut-point mapping chains to preserve positional integrity.</li>
+        </ul>
+
+        <h3>3. Mutation Operators in TSP</h3>
+        <ul>
+          <li><strong>Swap:</strong> Exchanges two random stops.</li>
+          <li><strong>Inversion:</strong> Reverses a contiguous subsegment (mimics 2-opt edge untangling).</li>
+          <li><strong>Scramble:</strong> Shuffles an internal sequence of stops.</li>
+        </ul>
+
+        <h3>4. Role of Elitism</h3>
+        <p>Elitism copies the top <em>E</em> best individuals untouched into the subsequent generation. This guarantees the GA's best discovered solution is strictly monotonic non-increasing (it can never degrade due to random crossover/mutation disruption).</p>
+
+        <button id="modal-close-btn" class="modal-close-btn">Close Viva Guide</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Local Leaflet Library (Stored in /vendor) -->
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <!-- Application Main Controller (ES Module) -->
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

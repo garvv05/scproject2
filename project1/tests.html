@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RouteEvolve — Operator Verification Test Suite</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body {
+      overflow-y: auto !important;
+      padding: 30px;
+      background: var(--bg-parchment);
+      color: var(--ink-primary);
+    }
+    .test-card {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--bg-card);
+      border: 1px solid var(--border-rule);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-desk);
+    }
+    .test-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid var(--accent-vermilion);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .test-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-rule);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .test-item:nth-child(even) {
+      background: var(--bg-parchment);
+    }
+    .status-badge {
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-weight: 700;
+      font-size: 11px;
+    }
+    .status-pass {
+      background: #dcfce7;
+      color: #15803d;
+      border: 1px solid #86efac;
+    }
+    .status-fail {
+      background: #fee2e2;
+      color: #b91c1c;
+      border: 1px solid #fca5a5;
+    }
+    .run-btn {
+      padding: 8px 18px;
+      background: var(--accent-vermilion);
+      color: #fff;
+      font-weight: 700;
+      border-radius: var(--radius-sm);
+    }
+  </style>
+</head>
+<body>
+  <div class="test-card">
+    <div class="test-header">
+      <div>
+        <h1 style="font-family: var(--font-serif); font-size: 22px;">RouteEvolve Operator Verification Suite</h1>
+        <p style="font-size: 12px; color: var(--ink-secondary); margin-top: 4px;">Soft Computing Lab Unit Tests &bull; Permutation Preservation &bull; Heuristics</p>
+      </div>
+      <div>
+        <button id="run-tests-btn" class="run-btn">Re-run All Tests</button>
+      </div>
+    </div>
+
+    <div id="test-summary" style="margin-bottom: 16px; font-weight: 600; font-size: 13px;">
+      Running tests...
+    </div>
+
+    <div id="test-results-list">
+      <!-- Injected by script -->
+    </div>
+
+    <div style="margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--border-rule); font-size: 11px; color: var(--ink-muted); display: flex; justify-content: space-between;">
+      <span>RouteEvolve Test Harness</span>
+      <a href="index.html" style="color: var(--accent-vermilion); font-weight: 600; text-decoration: none;">&larr; Return to Optimizer</a>
+    </div>
+  </div>
+
+  <script type="module">
+    import { haversineDistance, euclideanDistance, computeDistanceMatrix, computeRouteDistance } from './js/geo.js';
+    import { solveNearestNeighbour, polish2Opt } from './js/baseline.js';
+    import {
+      orderCrossover,
+      partiallyMappedCrossover,
+      swapMutation,
+      inversionMutation,
+      scrambleMutation,
+      isValidPermutation,
+      generateRandomChromosome,
+      createRNG,
+      tournamentSelection,
+      rouletteWheelSelection,
+      rankSelection,
+      createIndividual
+    } from './js/ga.js';
+    import { getLudhianaDemo12, getLudhianaLarge25 } from './js/presets.js';
+
+    const testListEl = document.getElementById('test-results-list');
+    const summaryEl = document.getElementById('test-summary');
+
+    async function runAllTests() {
+      testListEl.innerHTML = '';
+      summaryEl.textContent = 'Executing test cases...';
+
+      const results = [];
+
+      // Test 1: Haversine known distance
+      results.push(runTest('1. Haversine Distance (Ghanta Ghar to Bharat Nagar Chowk ~2.11 km)', () => {
+        const d = haversineDistance(30.9126, 75.8541, 30.9012, 75.8365);
+        if (Math.abs(d - 2.11) > 0.15) {
+          throw new Error(`Expected ~2.11 km, got ${d.toFixed(3)} km`);
+        }
+        return `Distance = ${d.toFixed(3)} km (Tolerance < 0.15 km)`;
+      }));
+
+      // Test 2: Euclidean plane distance
+      results.push(runTest('2. Euclidean Distance Metric (3-4-5 Triangle Calibrated)', () => {
+        const d = euclideanDistance(0, 0, 30, 40, 1.0);
+        if (Math.abs(d - 50) > 1e-6) {
+          throw new Error(`Expected 50.0, got ${d}`);
+        }
+        return `Euclidean distance = ${d.toFixed(2)}`;
+      }));
+
+      // Test 3: Order Crossover (OX) 1000 Randomized Trials
+      results.push(runTest('3. Order Crossover (OX) — 1,000 Randomized Trials (No duplicates/omissions)', () => {
+        const rng = createRNG(12345);
+        for (let t = 0; t < 1000; t++) {
+          const numCities = 5 + Math.floor(rng() * 40); // 5 to 45 cities
+          const p1 = generateRandomChromosome(numCities, 0, rng);
+          const p2 = generateRandomChromosome(numCities, 0, rng);
+
+          const { child1, child2 } = orderCrossover(p1, p2, rng);
+
+          if (!isValidPermutation(child1, numCities, 0)) {
+            throw new Error(`OX Child 1 invalid for N=${numCities}: [${child1.join(',')}]`);
+          }
+          if (!isValidPermutation(child2, numCities, 0)) {
+            throw new Error(`OX Child 2 invalid for N=${numCities}: [${child2.join(',')}]`);
+          }
+        }
+        return '1,000 / 1,000 offspring permutations strictly valid';
+      }));
+
+      // Test 4: Partially Mapped Crossover (PMX) 1000 Randomized Trials
+      results.push(runTest('4. Partially Mapped Crossover (PMX) — 1,000 Randomized Trials', () => {
+        const rng = createRNG(67890);
+        for (let t = 0; t < 1000; t++) {
+          const numCities = 5 + Math.floor(rng() * 40);
+          const p1 = generateRandomChromosome(numCities, 0, rng);
+          const p2 = generateRandomChromosome(numCities, 0, rng);
+
+          const { child1, child2 } = partiallyMappedCrossover(p1, p2, rng);
+
+          if (!isValidPermutation(child1, numCities, 0)) {
+            throw new Error(`PMX Child 1 invalid for N=${numCities}: [${child1.join(',')}]`);
+          }
+          if (!isValidPermutation(child2, numCities, 0)) {
+            throw new Error(`PMX Child 2 invalid for N=${numCities}: [${child2.join(',')}]`);
+          }
+        }
+        return '1,000 / 1,000 offspring permutations strictly valid';
+      }));
+
+      // Test 5: Swap Mutation Validity (500 Trials)
+      results.push(runTest('5. Swap Mutation — 500 Trials Validity Assertion', () => {
+        const rng = createRNG(42);
+        for (let t = 0; t < 500; t++) {
+          const numCities = 6 + Math.floor(rng() * 30);
+          const orig = generateRandomChromosome(numCities, 0, rng);
+          const { genes: mutated } = swapMutation(orig, rng);
+
+          if (!isValidPermutation(mutated, numCities, 0)) {
+            throw new Error(`Swap mutated permutation invalid for N=${numCities}`);
+          }
+        }
+        return '500 / 500 swap mutations valid';
+      }));
+
+      // Test 6: Inversion Mutation Validity (500 Trials)
+      results.push(runTest('6. Inversion Mutation (2-Opt Style Reversal) — 500 Trials', () => {
+        const rng = createRNG(99);
+        for (let t = 0; t < 500; t++) {
+          const numCities = 6 + Math.floor(rng() * 30);
+          const orig = generateRandomChromosome(numCities, 0, rng);
+          const { genes: mutated } = inversionMutation(orig, rng);
+
+          if (!isValidPermutation(mutated, numCities, 0)) {
+            throw new Error(`Inversion mutated permutation invalid for N=${numCities}`);
+          }
+        }
+        return '500 / 500 inversion mutations valid';
+      }));
+
+      // Test 7: Scramble Mutation Validity (500 Trials)
+      results.push(runTest('7. Scramble Mutation — 500 Trials', () => {
+        const rng = createRNG(777);
+        for (let t = 0; t < 500; t++) {
+          const numCities = 6 + Math.floor(rng() * 30);
+          const orig = generateRandomChromosome(numCities, 0, rng);
+          const { genes: mutated } = scrambleMutation(orig, rng);
+
+          if (!isValidPermutation(mutated, numCities, 0)) {
+            throw new Error(`Scramble mutated permutation invalid for N=${numCities}`);
+          }
+        }
+        return '500 / 500 scramble mutations valid';
+      }));
+
+      // Test 8: Nearest Neighbour Baseline on Ludhiana 25 Stops
+      results.push(runTest('8. Nearest Neighbour Algorithm (Ludhiana Large 25 Stops)', () => {
+        const cities = getLudhianaLarge25();
+        const distMatrix = computeDistanceMatrix(cities, false);
+        const nnRes = solveNearestNeighbour(cities.length, distMatrix, 0);
+
+        if (!isValidPermutation(nnRes.route, cities.length, 0)) {
+          throw new Error('NN route is not a valid permutation!');
+        }
+        if (nnRes.distance <= 0 || isNaN(nnRes.distance)) {
+          throw new Error(`Invalid NN distance: ${nnRes.distance}`);
+        }
+        return `NN route valid. Distance = ${nnRes.distance.toFixed(2)} km in ${nnRes.executionTimeMs.toFixed(2)} ms`;
+      }));
+
+      // Test 9: 2-Opt Polish Non-Increasing Distance
+      results.push(runTest('9. 2-Opt Polish Non-Increasing Distance Property', () => {
+        const cities = getLudhianaDemo12();
+        const distMatrix = computeDistanceMatrix(cities, false);
+        const randomRoute = generateRandomChromosome(cities.length, 0);
+        const origDist = computeRouteDistance(randomRoute, distMatrix);
+
+        const polished = polish2Opt(randomRoute, distMatrix);
+
+        if (polished.distance > origDist + 1e-9) {
+          throw new Error(`2-Opt increased distance! Orig: ${origDist}, Polished: ${polished.distance}`);
+        }
+        if (!isValidPermutation(polished.route, cities.length, 0)) {
+          throw new Error('2-Opt produced an invalid permutation');
+        }
+        return `Initial: ${origDist.toFixed(2)} km &rarr; Polished: ${polished.distance.toFixed(2)} km (-${(origDist - polished.distance).toFixed(2)} km)`;
+      }));
+
+      // Test 10: PRNG Reproducibility with Seeds
+      results.push(runTest('10. Seeded Mulberry32 PRNG Determinism', () => {
+        const rng1 = createRNG(4242);
+        const rng2 = createRNG(4242);
+
+        for (let i = 0; i < 100; i++) {
+          const val1 = rng1();
+          const val2 = rng2();
+          if (val1 !== val2) {
+            throw new Error(`Seed mismatch at iteration ${i}: ${val1} vs ${val2}`);
+          }
+        }
+        return '100 / 100 identical pseudo-random outputs across runs';
+      }));
+
+      // Test 11: Selection Operators (Tournament, Roulette, Rank)
+      results.push(runTest('11. Selection Operators Integrity (Tournament, Roulette, Rank)', () => {
+        const cities = getLudhianaDemo12();
+        const distMatrix = computeDistanceMatrix(cities, false);
+        const pop = [];
+        for (let i = 0; i < 20; i++) {
+          pop.push(createIndividual(generateRandomChromosome(cities.length, 0), distMatrix));
+        }
+
+        const tParent = tournamentSelection(pop, 5);
+        const rParent = rouletteWheelSelection(pop);
+        const sorted = [...pop].sort((a, b) => a.fitness - b.fitness);
+        const kParent = rankSelection(sorted);
+
+        if (!tParent || !rParent || !kParent) {
+          throw new Error('One or more selection operators returned null');
+        }
+        return 'Tournament, Roulette, and Rank selections all returned valid individuals';
+      }));
+
+      // Summary
+      const passed = results.filter(r => r.pass).length;
+      const total = results.length;
+      summaryEl.innerHTML = `
+        <span style="color: ${passed === total ? '#15803d' : '#b91c1c'}; font-size: 15px;">
+          ${passed === total ? '&#10004; ALL TESTS PASSED' : '&#10008; SOME TESTS FAILED'} (${passed}/${total} passed)
+        </span>
+      `;
+    }
+
+    function runTest(name, fn) {
+      const start = performance.now();
+      let pass = false;
+      let msg = '';
+      try {
+        msg = fn();
+        pass = true;
+      } catch (err) {
+        msg = err.message;
+        pass = false;
+      }
+      const dur = (performance.now() - start).toFixed(1);
+
+      const el = document.createElement('div');
+      el.className = 'test-item';
+      el.innerHTML = `
+        <div>
+          <strong>${name}</strong>
+          <div style="font-size: 11px; color: var(--ink-secondary); margin-top: 2px;">${msg} (${dur} ms)</div>
+        </div>
+        <div>
+          <span class="status-badge ${pass ? 'status-pass' : 'status-fail'}">${pass ? 'PASSED' : 'FAILED'}</span>
+        </div>
+      `;
+      testListEl.appendChild(el);
+
+      return { name, pass, msg };
+    }
+
+    document.getElementById('run-tests-btn').addEventListener('click', runAllTests);
+
+    // Run automatically on load
+    runAllTests();
+  </script>
+</body>
+</html>
